@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: universal-downloader-api
+    env: docker
+    dockerfilePath: ./Dockerfile
+    plan: free
+    envVars:
+      - key: FRONTEND_URL
+        value: https://universal-downloader.vercel.app

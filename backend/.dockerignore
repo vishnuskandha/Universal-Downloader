@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+temp_downloads/
+temp_*/
+tempdir_*/
+ffmpeg-master-latest-win64-gpl/
+*.webm
+*.mp4
+*.mp3
+test*.py
+.env
