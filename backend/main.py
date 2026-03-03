@@ -15,7 +15,7 @@ app = FastAPI(title="Video Downloader API")
 
 # CORS: In production, set FRONTEND_URL env var to your Vercel domain.
 # e.g. FRONTEND_URL=https://universal-downloader.vercel.app
-_frontend_url = os.environ.get("FRONTEND_URL", "")
+_frontend_url = os.environ.get("FRONTEND_URL", "").rstrip("/")
 _origins = [_frontend_url] if _frontend_url else ["*"]
 
 app.add_middleware(
