@@ -42,6 +42,14 @@ def _base_opts() -> dict:
         'socket_timeout': 30,
         'retries': 3,           # yt-dlp internal HTTP retries
         'fragment_retries': 5,  # retry individual DASH/HLS fragments
+        'extractor_args': {
+            'youtube': {
+                # Force yt-dlp to impersonate iOS/Android mobile clients.
+                # The normal Web client is actively blocked on datacenter IPs (like Render)
+                # returning "Sign in to confirm you're not a bot". Mobile clients bypass this.
+                'player_client': ['ios', 'android']
+            }
+        }
     }
     if FFMPEG_LOCATION:
         opts['ffmpeg_location'] = FFMPEG_LOCATION
