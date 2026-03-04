@@ -3,7 +3,7 @@ import { Download, Link2, AlertCircle, CheckCircle2, Loader2, Video, Music, Info
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'framer-motion';
-import { analyzeUrl, downloadVideo } from './api';
+import { analyzeUrl, downloadVideo, cobaltDownload, isYouTubeUrl } from './api';
 import FaultyTerminal from './components/FaultyTerminal';
 
 import SpotlightCard from './components/SpotlightCard';
@@ -23,11 +23,22 @@ function App() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [mode, setMode] = useState('single'); // 'single' | 'batch'
+  const [isYouTube, setIsYouTube] = useState(false);
+  const [ytQuality, setYtQuality] = useState('1080');
 
   const handleAnalyze = async (e) => {
     e.preventDefault();
     if (!url.trim()) return;
 
+    // YouTube → skip analyze, use cobalt
+    if (isYouTubeUrl(url)) {
+      setIsYouTube(true);
+      setMetadata(null);
+      setError(null);
+      return;
+    }
+
+    setIsYouTube(false);
     setIsAnalyzing(true);
     setError(null);
     setMetadata(null);
@@ -37,7 +48,6 @@ function App() {
     try {
       const data = await analyzeUrl(url);
       setMetadata(data);
-      // Auto-select a format if possible
       if (data.formats && data.formats.length > 0) {
         const defaultFormat = data.formats.find(f => f.hasVideo && ['1080p', '720p', '480p'].includes(f.resolution)) || data.formats[0];
         setSelectedFormat(defaultFormat.formatId);
@@ -49,6 +59,24 @@ function App() {
     }
   };
 
+  // Cobalt-based YouTube download (production, no bot detection issues)
+  const handleCobaltDownload = async (downloadMode = 'auto') => {
+    setIsDownloading(true);
+    setError(null);
+    setDownloadSuccess(false);
+
+    try {
+      await cobaltDownload(url, ytQuality, downloadMode);
+      setDownloadSuccess(true);
+      setTimeout(() => setDownloadSuccess(false), 4000);
+    } catch (err) {
+      setError(err.response?.data?.detail || err.message || "Download failed. Please try again.");
+      console.error(err);
+    } finally {
+      setIsDownloading(false);
+    }
+  };
+
   const handleDownload = async () => {
     if (!metadata || !selectedFormat) return;
 
@@ -56,12 +84,9 @@ function App() {
     setError(null);
     setDownloadSuccess(false);
 
-
-
     try {
       await downloadVideo(url, selectedFormat, metadata.title || '');
       setDownloadSuccess(true);
-      // Auto-dismiss success banner after 4s
       setTimeout(() => setDownloadSuccess(false), 4000);
     } catch (err) {
       setError("Failed to download video. Please try again.");
@@ -260,6 +285,87 @@ function App() {
               </div>
             </SpotlightCard>
           </motion.div>
+
+          {/* YouTube Quick Download Panel (cobalt-powered) */}
+          <AnimatePresence>
+            {isYouTube && (
+              <motion.div
+                initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                exit={{ opacity: 0, y: -20, scale: 0.95 }}
+                transition={{ type: "spring", stiffness: 200, damping: 20 }}
+                className="w-full"
+              >
+                <SpotlightCard className="w-full p-6 sm:p-8" spotlightColor="rgba(239, 68, 68, 0.15)">
+                  <div className="space-y-6">
+                    <div className="flex items-center gap-3">
+                      <div className="w-3 h-3 rounded-full bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.5)]"></div>
+                      <h3 className="text-xl font-bold text-white">YouTube Download</h3>
+                    </div>
+
+                    <p className="text-sm text-slate-300/80">
+                      Select quality and download. H.264 codec for WhatsApp & iPhone compatibility.
+                    </p>
+
+                    {/* Quality Selector */}
+                    <div className="space-y-3">
+                      <label className="text-sm font-medium text-slate-300">Video Quality</label>
+                      <div className="flex flex-wrap gap-2">
+                        {['4320', '2160', '1440', '1080', '720', '480', '360', '144'].map((q) => (
+                          <button
+                            key={q}
+                            onClick={() => setYtQuality(q)}
+                            className={cn(
+                              "px-4 py-2 rounded-xl text-sm font-medium transition-all duration-200 border",
+                              ytQuality === q
+                                ? "bg-red-500/20 border-red-500/50 text-red-400 shadow-[0_0_12px_rgba(239,68,68,0.2)]"
+                                : "bg-white/5 border-white/10 text-slate-400 hover:bg-white/10 hover:border-white/20"
+                            )}
+                          >
+                            {q === '4320' ? '8K' : q === '2160' ? '4K' : `${q}p`}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Download Buttons */}
+                    <div className="flex flex-col sm:flex-row gap-3">
+                      <motion.button
+                        whileHover={isDownloading ? {} : { scale: 1.02 }}
+                        whileTap={isDownloading ? {} : { scale: 0.98 }}
+                        onClick={() => handleCobaltDownload('auto')}
+                        disabled={isDownloading}
+                        className="glass-btn flex-1 h-14 px-6 bg-red-500/90 text-white font-bold overflow-hidden relative tracking-wide disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-3 shadow-[0_0_20px_rgba(239,68,68,0.3)] hover:shadow-[0_0_30px_rgba(239,68,68,0.6)] border border-red-400/50"
+                      >
+                        {isDownloading ? (
+                          <>
+                            <Loader2 className="w-5 h-5 animate-spin" />
+                            <span>Downloading...</span>
+                          </>
+                        ) : (
+                          <>
+                            <Video className="w-5 h-5" />
+                            <span>Download Video</span>
+                          </>
+                        )}
+                      </motion.button>
+
+                      <motion.button
+                        whileHover={isDownloading ? {} : { scale: 1.02 }}
+                        whileTap={isDownloading ? {} : { scale: 0.98 }}
+                        onClick={() => handleCobaltDownload('audio')}
+                        disabled={isDownloading}
+                        className="glass-btn h-14 px-6 bg-brand-500/20 text-brand-400 font-bold overflow-hidden relative tracking-wide disabled:opacity-50 disabled:pointer-events-none flex items-center justify-center gap-3 shadow-[0_0_12px_rgba(74,222,128,0.2)] hover:shadow-[0_0_20px_rgba(74,222,128,0.4)] border border-brand-500/30"
+                      >
+                        <Music className="w-5 h-5" />
+                        <span>Audio Only</span>
+                      </motion.button>
+                    </div>
+                  </div>
+                </SpotlightCard>
+              </motion.div>
+            )}
+          </AnimatePresence>
 
           {/* Results Card */}
           <AnimatePresence>

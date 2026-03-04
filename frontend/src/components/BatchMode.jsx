@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Download, Loader2, CheckCircle2, AlertCircle, X, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { analyzeUrl, downloadVideo } from '../api';
+import { analyzeUrl, downloadVideo, cobaltDownload, isYouTubeUrl } from '../api';
 import SpotlightCard from './SpotlightCard';
 
 let nextId = 0;
@@ -20,8 +20,17 @@ export default function BatchMode() {
     };
 
     const processItem = useCallback(async (item, attempt = 0) => {
-        updateItem(item.id, { status: 'analyzing' });
+        updateItem(item.id, { status: 'downloading' });
         try {
+            // YouTube → cobalt (production, no bot detection issues)
+            if (isYouTubeUrl(item.url)) {
+                await cobaltDownload(item.url, '1080');
+                updateItem(item.id, { status: 'done' });
+                return;
+            }
+
+            // Non-YouTube → yt-dlp analyze + download
+            updateItem(item.id, { status: 'analyzing' });
             const data = await analyzeUrl(item.url);
             if (!data || !data.formats || data.formats.length === 0) {
                 updateItem(item.id, { status: 'error', error: 'No formats found' });
@@ -33,10 +42,9 @@ export default function BatchMode() {
             updateItem(item.id, { status: 'done' });
         } catch (err) {
             const errMsg = err.response?.data?.detail || err.message || 'Download failed';
-            // Auto-retry once on server errors (500) — handles transient FFmpeg lock issues
             if (attempt === 0 && (err.response?.status === 500 || err.response?.status === 429)) {
                 updateItem(item.id, { status: 'analyzing', error: null, title: item.title + ' (retrying…)' });
-                await new Promise(r => setTimeout(r, 3000)); // wait 3s before retry
+                await new Promise(r => setTimeout(r, 3000));
                 return processItem(item, 1);
             }
             updateItem(item.id, { status: 'error', error: errMsg });

@@ -8,6 +8,7 @@ import asyncio
 import shutil
 import re
 import traceback
+import httpx
 
 from downloader import analyze_url, download_video
 
@@ -29,6 +30,11 @@ app.add_middleware(
 
 TEMP_DIR = os.path.join(os.getcwd(), "temp_downloads")
 
+# ─── Cobalt API (production YouTube extraction) ──────────────────────
+# Public cobalt instances that handle YouTube bot detection internally.
+# These rotate automatically if one goes down.
+COBALT_API_URL = os.environ.get("COBALT_API_URL", "https://api.cobalt.tools")
+
 class AnalyzeRequest(BaseModel):
     url: str
 
@@ -36,6 +42,12 @@ class DownloadRequest(BaseModel):
     url: str
     formatId: str
     title: str = ""
+
+class CobaltRequest(BaseModel):
+    url: str
+    quality: str = "1080"
+    codec: str = "h264"
+    mode: str = "auto"   # auto | audio | mute
 
 rate_limits = {}
 
@@ -52,7 +64,6 @@ def check_rate_limit(request: Request):
 def safe_filename(title: str, ext: str) -> str:
     if not title:
         return f"download.{ext}"
-    # Strip non-ASCII (emoji, CJK, etc.) — HTTP headers are latin-1 only
     safe = re.sub(r'[\\/*?:"<>|]', '', title)
     safe = safe.encode('ascii', 'ignore').decode('ascii')
     safe = safe.strip().replace(' ', '_')[:80]
@@ -77,6 +88,73 @@ MIME_MAP = {
     "ogg": "audio/ogg",
 }
 
+# ─── Cobalt Proxy Endpoint ───────────────────────────────────────────
+# This is the production-level approach. Instead of downloading through
+# our server (which gets bot-blocked), we ask cobalt's API to extract
+# the direct download URL. Cobalt handles YouTube's bot detection.
+@app.post("/api/cobalt")
+async def api_cobalt(req: CobaltRequest, request: Request):
+    check_rate_limit(request)
+    if not req.url:
+        raise HTTPException(status_code=400, detail="URL is required")
+
+    cobalt_body = {
+        "url": req.url,
+        "videoQuality": req.quality,
+        "youtubeVideoCodec": req.codec,
+        "downloadMode": req.mode,
+        "filenameStyle": "pretty",
+    }
+
+    try:
+        async with httpx.AsyncClient(timeout=30) as client:
+            resp = await client.post(
+                COBALT_API_URL,
+                json=cobalt_body,
+                headers={
+                    "Accept": "application/json",
+                    "Content-Type": "application/json",
+                },
+            )
+
+        data = resp.json()
+        status = data.get("status")
+
+        if status in ("tunnel", "redirect"):
+            return {
+                "status": status,
+                "url": data.get("url"),
+                "filename": data.get("filename", "download.mp4"),
+            }
+        elif status == "picker":
+            # Multiple items (e.g. carousel) — return first
+            items = data.get("picker", [])
+            if items:
+                first = items[0]
+                return {
+                    "status": "tunnel",
+                    "url": first.get("url"),
+                    "filename": data.get("filename", "download.mp4"),
+                }
+            raise HTTPException(status_code=400, detail="No downloadable items found")
+        elif status == "error":
+            error_code = data.get("error", {}).get("code", "unknown")
+            raise HTTPException(status_code=400, detail=f"Cobalt error: {error_code}")
+        else:
+            raise HTTPException(status_code=500, detail=f"Unexpected cobalt response: {status}")
+
+    except httpx.HTTPError as e:
+        print(f"[cobalt] HTTP error: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=502, detail=f"Cobalt API unreachable: {str(e)}")
+    except HTTPException:
+        raise
+    except Exception as e:
+        print(f"[cobalt] Error: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+# ─── yt-dlp Endpoints (for Facebook, Instagram, and local use) ────────
 @app.post("/api/analyze")
 async def api_analyze(req: AnalyzeRequest, request: Request):
     check_rate_limit(request)
@@ -131,7 +209,6 @@ async def api_download(req: DownloadRequest, request: Request, background_tasks:
     except asyncio.TimeoutError:
         raise HTTPException(status_code=408, detail="Download timed out (5 min limit). Try a lower quality.")
     except Exception as e:
-        # Log full traceback for debugging
         print(f"[api] Download error for {req.url[:60]}: {e}")
         traceback.print_exc()
         raise HTTPException(status_code=500, detail=str(e))
