@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { Download, Loader2, CheckCircle2, AlertCircle, X, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { analyzeUrl, downloadVideo, cobaltDownload, isYouTubeUrl } from '../api';
+import { analyzeUrl, downloadVideo } from '../api';
 import SpotlightCard from './SpotlightCard';
 
 let nextId = 0;
@@ -20,17 +20,8 @@ export default function BatchMode() {
     };
 
     const processItem = useCallback(async (item, attempt = 0) => {
-        updateItem(item.id, { status: 'downloading' });
+        updateItem(item.id, { status: 'analyzing' });
         try {
-            // YouTube → cobalt (production, no bot detection issues)
-            if (isYouTubeUrl(item.url)) {
-                await cobaltDownload(item.url, '1080');
-                updateItem(item.id, { status: 'done' });
-                return;
-            }
-
-            // Non-YouTube → yt-dlp analyze + download
-            updateItem(item.id, { status: 'analyzing' });
             const data = await analyzeUrl(item.url);
             if (!data || !data.formats || data.formats.length === 0) {
                 updateItem(item.id, { status: 'error', error: 'No formats found' });

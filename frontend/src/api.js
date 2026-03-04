@@ -11,14 +11,13 @@ function isYouTubeUrl(url) {
     return /(?:youtube\.com|youtu\.be|youtube-nocookie\.com)/i.test(url);
 }
 
-// ─── Cobalt-based download (YouTube) ────────────────────────────────
-// Production approach: cobalt handles YouTube's bot detection and
-// returns a direct download URL. No video bytes pass through our server.
+// ─── Cobalt-based download (YouTube on datacenter IPs) ──────────────
+// Used when VITE_USE_COBALT=true (for Render/datacenter deployments)
 export const cobaltDownload = async (url, quality = '1080', mode = 'auto') => {
     const response = await apiClient.post('/api/cobalt', {
         url,
         quality,
-        codec: 'h264',   // H.264 for WhatsApp/iPhone compatibility
+        codec: 'h264',
         mode,
     });
 
@@ -27,7 +26,6 @@ export const cobaltDownload = async (url, quality = '1080', mode = 'auto') => {
         throw new Error('No download URL returned from cobalt');
     }
 
-    // Trigger download via hidden anchor — direct from cobalt CDN
     const link = document.createElement('a');
     link.href = downloadUrl;
     link.setAttribute('download', filename || 'download.mp4');
@@ -39,13 +37,13 @@ export const cobaltDownload = async (url, quality = '1080', mode = 'auto') => {
     return { filename };
 };
 
-// ─── yt-dlp based analyze (Facebook, Instagram, local) ──────────────
+// ─── yt-dlp based analyze ───────────────────────────────────────────
 export const analyzeUrl = async (url) => {
     const response = await apiClient.post('/api/analyze', { url });
     return response.data;
 };
 
-// ─── yt-dlp based download (Facebook, Instagram, local) ─────────────
+// ─── yt-dlp based download ──────────────────────────────────────────
 export const downloadVideo = async (url, formatId, title = '') => {
     try {
         const response = await apiClient.post(
@@ -85,17 +83,6 @@ export const downloadVideo = async (url, formatId, title = '') => {
             err.message = err.serverDetail;
         }
         throw err;
-    }
-};
-
-// ─── Smart Download (auto-detect platform) ──────────────────────────
-// YouTube → cobalt (production, no bot detection issues)
-// Facebook/Instagram → yt-dlp (works fine on datacenter IPs)
-export const smartDownload = async (url, formatId, title, quality = '1080') => {
-    if (isYouTubeUrl(url)) {
-        return cobaltDownload(url, quality);
-    } else {
-        return downloadVideo(url, formatId, title);
     }
 };
 

@@ -3,7 +3,7 @@ import { Download, Link2, AlertCircle, CheckCircle2, Loader2, Video, Music, Info
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
 import { motion, AnimatePresence } from 'framer-motion';
-import { analyzeUrl, downloadVideo, cobaltDownload, isYouTubeUrl } from './api';
+import { analyzeUrl, downloadVideo } from './api';
 import FaultyTerminal from './components/FaultyTerminal';
 
 import SpotlightCard from './components/SpotlightCard';
@@ -23,22 +23,11 @@ function App() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [downloadSuccess, setDownloadSuccess] = useState(false);
   const [mode, setMode] = useState('single'); // 'single' | 'batch'
-  const [isYouTube, setIsYouTube] = useState(false);
-  const [ytQuality, setYtQuality] = useState('1080');
 
   const handleAnalyze = async (e) => {
     e.preventDefault();
     if (!url.trim()) return;
 
-    // YouTube → skip analyze, use cobalt
-    if (isYouTubeUrl(url)) {
-      setIsYouTube(true);
-      setMetadata(null);
-      setError(null);
-      return;
-    }
-
-    setIsYouTube(false);
     setIsAnalyzing(true);
     setError(null);
     setMetadata(null);
@@ -56,24 +45,6 @@ function App() {
       setError(err.response?.data?.detail || err.message || "Failed to analyze URL");
     } finally {
       setIsAnalyzing(false);
-    }
-  };
-
-  // Cobalt-based YouTube download (production, no bot detection issues)
-  const handleCobaltDownload = async (downloadMode = 'auto') => {
-    setIsDownloading(true);
-    setError(null);
-    setDownloadSuccess(false);
-
-    try {
-      await cobaltDownload(url, ytQuality, downloadMode);
-      setDownloadSuccess(true);
-      setTimeout(() => setDownloadSuccess(false), 4000);
-    } catch (err) {
-      setError(err.response?.data?.detail || err.message || "Download failed. Please try again.");
-      console.error(err);
-    } finally {
-      setIsDownloading(false);
     }
   };
 
