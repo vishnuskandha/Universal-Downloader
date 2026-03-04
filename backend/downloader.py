@@ -6,6 +6,8 @@ import shutil
 import threading
 import time
 import traceback
+import base64
+import tempfile
 
 # ─── FFmpeg Detection ─────────────────────────────────────────────────
 
@@ -24,6 +26,27 @@ else:
     print("[downloader] WARNING: FFmpeg not found! Audio merging will not work.")
 
 HAS_FFMPEG = FFMPEG_LOCATION is not None
+
+# ─── YouTube Cookie Authentication ────────────────────────────────────
+# On datacenter IPs (Render, Railway, etc.) YouTube blocks yt-dlp with
+# "Sign in to confirm you're not a bot". The fix is to provide real
+# YouTube cookies from a logged-in browser session.
+#
+# Set env var YT_COOKIES_BASE64 = base64-encoded contents of a
+# Netscape-format cookies.txt file exported from your browser.
+_COOKIE_FILE = None
+_yt_cookies_b64 = os.environ.get("YT_COOKIES_BASE64", "")
+if _yt_cookies_b64:
+    _COOKIE_FILE = os.path.join(tempfile.gettempdir(), "yt_cookies.txt")
+    try:
+        with open(_COOKIE_FILE, "wb") as f:
+            f.write(base64.b64decode(_yt_cookies_b64))
+        print(f"[downloader] YouTube cookies loaded → {_COOKIE_FILE}")
+    except Exception as e:
+        print(f"[downloader] WARNING: Failed to decode YT_COOKIES_BASE64: {e}")
+        _COOKIE_FILE = None
+else:
+    print("[downloader] No YT_COOKIES_BASE64 env var set (YouTube may block datacenter IPs)")
 
 # Only 2 concurrent yt-dlp+FFmpeg processes at a time (Windows file lock prevention).
 # threading.Semaphore because _run() executes inside asyncio.to_thread().
@@ -55,6 +78,8 @@ def _base_opts() -> dict:
     }
     if FFMPEG_LOCATION:
         opts['ffmpeg_location'] = FFMPEG_LOCATION
+    if _COOKIE_FILE:
+        opts['cookiefile'] = _COOKIE_FILE
     return opts
 
 
