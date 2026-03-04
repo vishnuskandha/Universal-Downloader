@@ -37,6 +37,7 @@ function App() {
     try {
       const data = await analyzeUrl(url);
       setMetadata(data);
+      // Auto-select a format if possible
       if (data.formats && data.formats.length > 0) {
         const defaultFormat = data.formats.find(f => f.hasVideo && ['1080p', '720p', '480p'].includes(f.resolution)) || data.formats[0];
         setSelectedFormat(defaultFormat.formatId);
@@ -55,9 +56,12 @@ function App() {
     setError(null);
     setDownloadSuccess(false);
 
+
+
     try {
       await downloadVideo(url, selectedFormat, metadata.title || '');
       setDownloadSuccess(true);
+      // Auto-dismiss success banner after 4s
       setTimeout(() => setDownloadSuccess(false), 4000);
     } catch (err) {
       setError("Failed to download video. Please try again.");
@@ -256,7 +260,6 @@ function App() {
               </div>
             </SpotlightCard>
           </motion.div>
-
 
           {/* Results Card */}
           <AnimatePresence>

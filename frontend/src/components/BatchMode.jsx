@@ -33,9 +33,10 @@ export default function BatchMode() {
             updateItem(item.id, { status: 'done' });
         } catch (err) {
             const errMsg = err.response?.data?.detail || err.message || 'Download failed';
+            // Auto-retry once on server errors (500) — handles transient FFmpeg lock issues
             if (attempt === 0 && (err.response?.status === 500 || err.response?.status === 429)) {
                 updateItem(item.id, { status: 'analyzing', error: null, title: item.title + ' (retrying…)' });
-                await new Promise(r => setTimeout(r, 3000));
+                await new Promise(r => setTimeout(r, 3000)); // wait 3s before retry
                 return processItem(item, 1);
             }
             updateItem(item.id, { status: 'error', error: errMsg });

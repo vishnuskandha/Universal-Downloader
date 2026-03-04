@@ -6,44 +6,11 @@ const apiClient = axios.create({
     baseURL: API_BASE_URL,
 });
 
-// ─── Platform Detection ─────────────────────────────────────────────
-function isYouTubeUrl(url) {
-    return /(?:youtube\.com|youtu\.be|youtube-nocookie\.com)/i.test(url);
-}
-
-// ─── Cobalt-based download (YouTube on datacenter IPs) ──────────────
-// Used when VITE_USE_COBALT=true (for Render/datacenter deployments)
-export const cobaltDownload = async (url, quality = '1080', mode = 'auto') => {
-    const response = await apiClient.post('/api/cobalt', {
-        url,
-        quality,
-        codec: 'h264',
-        mode,
-    });
-
-    const { url: downloadUrl, filename } = response.data;
-    if (!downloadUrl) {
-        throw new Error('No download URL returned from cobalt');
-    }
-
-    const link = document.createElement('a');
-    link.href = downloadUrl;
-    link.setAttribute('download', filename || 'download.mp4');
-    link.style.display = 'none';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-
-    return { filename };
-};
-
-// ─── yt-dlp based analyze ───────────────────────────────────────────
 export const analyzeUrl = async (url) => {
     const response = await apiClient.post('/api/analyze', { url });
     return response.data;
 };
 
-// ─── yt-dlp based download ──────────────────────────────────────────
 export const downloadVideo = async (url, formatId, title = '') => {
     try {
         const response = await apiClient.post(
@@ -72,6 +39,8 @@ export const downloadVideo = async (url, formatId, title = '') => {
         link.parentNode.removeChild(link);
         window.URL.revokeObjectURL(downloadUrl);
     } catch (err) {
+        // ─── FIX: axios returns error body as a Blob when responseType is 'blob'.
+        // We need to read it as text to get the JSON error detail from FastAPI.
         if (err.response && err.response.data instanceof Blob) {
             try {
                 const text = await err.response.data.text();
@@ -80,10 +49,9 @@ export const downloadVideo = async (url, formatId, title = '') => {
             } catch {
                 err.serverDetail = 'Server error';
             }
+            // Attach parsed detail so callers can access it
             err.message = err.serverDetail;
         }
         throw err;
     }
 };
-
-export { isYouTubeUrl };
