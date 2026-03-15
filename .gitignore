@@ -25,6 +25,8 @@ desktop.ini
 # Env
 .env
 .env.local
+backend/.env
+backend/.env.local
 
 # FFmpeg binary (large, user provides)
 backend/ffmpeg-master-latest-win64-gpl/

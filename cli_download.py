@@ -13,7 +13,8 @@ import argparse
 # Add backend directory to path
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'backend'))
 
-from downloader import analyze_url, download_video, HAS_FFMPEG
+from downloader import analyze_url, download_video
+from telegram_sender import send_video
 
 OUTPUT_DIR = os.path.join(os.path.dirname(__file__), 'downloads')
 os.makedirs(OUTPUT_DIR, exist_ok=True)
@@ -69,6 +70,16 @@ async def main():
         filepath = await download_video(args.url, selected['formatId'], OUTPUT_DIR)
         safe_print(f"[cli] Download complete: {filepath}")
         safe_print(f"[cli] File size: {os.path.getsize(filepath) / (1024*1024):.1f} MB")
+
+        # Send to Telegram
+        safe_print("[cli] Sending to Telegram...")
+        title = info.get('title', 'Video')
+        caption = f"<b>Downloaded:</b> {title}\n<a href='{args.url}'>Source</a>"
+        sent = await send_video(filepath, caption)
+        if sent:
+            safe_print("[cli] Sent to Telegram successfully")
+        else:
+            safe_print("[cli] Telegram send skipped or failed (check bot config)")
 
     except Exception as e:
         safe_print(f"[cli] ERROR: {e}")
