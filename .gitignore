@@ -8,6 +8,7 @@ __pycache__/
 backend/temp_downloads/
 backend/temp_*/
 backend/tempdir_*/
+downloads/
 
 # Build output
 frontend/dist/
