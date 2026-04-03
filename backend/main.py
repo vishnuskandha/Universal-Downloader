@@ -56,6 +56,7 @@ def safe_filename(title: str, ext: str) -> str:
     # Strip non-ASCII (emoji, CJK, etc.) — HTTP headers are latin-1 only
     safe = re.sub(r'[\\/*?:"<>|]', '', title)
     safe = safe.encode('ascii', 'ignore').decode('ascii')
+    safe = re.sub(r'[\r\n\t]', '', safe)
     safe = safe.strip().replace(' ', '_')[:80]
     if not safe:
         safe = 'download'
