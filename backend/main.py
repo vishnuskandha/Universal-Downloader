@@ -1,6 +1,6 @@
-from fastapi import FastAPI, HTTPException, BackgroundTasks, Request
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import FileResponse
 from pydantic import BaseModel
 import os
 import time
@@ -8,6 +8,8 @@ import asyncio
 import shutil
 import re
 import traceback
+import threading
+from starlette.background import BackgroundTask
 
 from downloader import analyze_url, download_video
 
@@ -16,13 +18,14 @@ app = FastAPI(title="Video Downloader API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
-    allow_credentials=True,
+    allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],
     expose_headers=["Content-Disposition"],  # so browser can read filename
 )
 
-TEMP_DIR = os.path.join(os.getcwd(), "temp_downloads")
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+TEMP_DIR = os.path.join(BASE_DIR, "temp_downloads")
 
 class AnalyzeRequest(BaseModel):
     url: str
@@ -33,16 +36,19 @@ class DownloadRequest(BaseModel):
     title: str = ""
 
 rate_limits = {}
+rate_limits_lock = threading.Lock()
 
 def check_rate_limit(request: Request):
-    ip = request.client.host
+    client = request.client
+    ip = client.host if client else "unknown"
     now = time.time()
-    if ip not in rate_limits:
-        rate_limits[ip] = []
-    rate_limits[ip] = [t for t in rate_limits[ip] if now - t < 60]
-    if len(rate_limits[ip]) >= 60:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
-    rate_limits[ip].append(now)
+    with rate_limits_lock:
+        if ip not in rate_limits:
+            rate_limits[ip] = []
+        rate_limits[ip] = [t for t in rate_limits[ip] if now - t < 60]
+        if len(rate_limits[ip]) >= 60:
+            raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
+        rate_limits[ip].append(now)
 
 def safe_filename(title: str, ext: str) -> str:
     if not title:
@@ -90,43 +96,42 @@ async def api_analyze(req: AnalyzeRequest, request: Request):
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
+        print(f"[api] Analyze error for {req.url[:60]}: {e}")
+        traceback.print_exc()
+        raise HTTPException(status_code=400, detail="Could not analyze the provided URL.")
 
 @app.post("/api/download")
-async def api_download(req: DownloadRequest, request: Request, background_tasks: BackgroundTasks):
+async def api_download(req: DownloadRequest, request: Request):
     check_rate_limit(request)
     if not req.url or not req.formatId:
         raise HTTPException(status_code=400, detail="URL and formatId are required")
 
     try:
+        os.makedirs(TEMP_DIR, exist_ok=True)
         filepath = await asyncio.wait_for(
             download_video(req.url, req.formatId, TEMP_DIR),
             timeout=300
         )
 
-        ext = os.path.splitext(filepath)[1].lstrip('.')
+        ext = os.path.splitext(filepath)[1].lstrip('.') or "bin"
         mime = MIME_MAP.get(ext, "application/octet-stream")
         friendly_name = safe_filename(req.title, ext)
 
-        with open(filepath, "rb") as f:
-            file_bytes = f.read()
-
         job_dir = os.path.dirname(filepath)
-        background_tasks.add_task(cleanup_job_dir, job_dir)
 
-        return Response(
-            content=file_bytes,
+        return FileResponse(
+            path=filepath,
             media_type=mime,
+            filename=friendly_name,
+            background=BackgroundTask(cleanup_job_dir, job_dir),
             headers={
-                "Content-Disposition": f'attachment; filename="{friendly_name}"',
-                "Content-Length": str(len(file_bytes)),
+                "Content-Disposition": f'attachment; filename="{friendly_name}"'
             }
         )
 
     except asyncio.TimeoutError:
         raise HTTPException(status_code=408, detail="Download timed out (5 min limit). Try a lower quality.")
     except Exception as e:
-        # Log full traceback for debugging
         print(f"[api] Download error for {req.url[:60]}: {e}")
         traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Download failed. Please try again.")
