@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState } from 'react';
 import { Download, Link2, AlertCircle, CheckCircle2, Loader2, Video, Music, Info, ExternalLink, Layers, ClipboardPaste } from 'lucide-react';
 import { clsx } from 'clsx';
 import { twMerge } from 'tailwind-merge';
@@ -205,7 +205,7 @@ function App() {
                   {!url && (
                     <button
                       type="button"
-                      onClick={async () => { try { const t = await navigator.clipboard.readText(); setUrl(t.trim()); } catch { } }}
+                      onClick={async () => { try { const t = await navigator.clipboard.readText(); setUrl(t.trim()); } catch { /* clipboard access may be denied; ignore */ } }}
                       className="absolute inset-y-0 right-3 flex items-center px-1 text-slate-500 hover:text-brand-400 transition-colors"
                       title="Paste from clipboard"
                     >

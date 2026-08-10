@@ -1,257 +1,171 @@
-# 🟢 Universal Downloader
+# Universal Downloader
 
-A modern, premium video and audio downloader with a hacker-aesthetic UI. Download media from **YouTube** and **Facebook** — including videos, shorts, reels, and audio — all from one place.
+[![CI](https://github.com/vishnuskandha/Universal-Downloader/actions/workflows/ci.yml/badge.svg)](https://github.com/vishnuskandha/Universal-Downloader/actions/workflows/ci.yml)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
-**Built by [Vishnu Skandha](https://vishnuskandhagithubio.vercel.app/)**
+A modern video and audio downloader for **YouTube**, **Facebook**, and
+**Instagram** - including videos, shorts, reels, and MP3 audio extraction - with
+a terminal-themed glassmorphism UI.
 
----
+- **Frontend**: React, Vite, Tailwind CSS v4, Framer Motion, WebGL matrix background
+- **Backend**: Python, FastAPI, yt-dlp, FFmpeg
 
-## ✨ Features
+Built by [Vishnu Skandha](https://github.com/vishnuskandha).
 
-### 🎬 Multi-Platform Support
-| Platform     | Content Types     | Capabilities                       |
-|--------------|-------------------|-------------------------------------|
-| **YouTube**  | Videos, Shorts    | Up to 4K, audio extraction (MP3)   |
-| **Facebook** | Videos, Reels     | Best available quality + audio     |
+## Features
 
-### 🖥 Frontend
-- **FaultyTerminal** — WebGL-powered matrix background with mouse reactivity
-- **Glassmorphism UI** — Frosted glass cards, inputs, and buttons with fluid rounded corners
-- **Framer Motion** — Smooth page animations, staggered reveals, and micro-interactions
-- **SpotlightCard** — Cursor-following glow effect on cards
-- **ProfileCard** — Interactive 3D tilt card with glow effects (bottom-right corner)
-- **Mode Toggle** — Switch between **Single** and **Batch** download modes
-- **Batch Mode** — Paste multiple URLs, download all with concurrency pool (3 workers) and auto-retry
-- **Clipboard Paste** — One-click paste button in URL input
-- **Platform Badges** — Color-coded dots (YouTube red, Facebook blue, Instagram pink)
-- **Fluid Progress Bar** — Animated glowing progress bar during downloads
-- **Auto-dismiss** — Success banner disappears after 4 seconds
-- **Responsive** — Works on desktop, tablet, and **mobile** (access via local network)
-- **Green unified theme** — All UI colors matched to the terminal background tint
+- Multi-platform support: YouTube (videos, shorts, up to 4K), Facebook
+  (videos, reels), Instagram (reels, posts)
+- Smart format selection with H.264/AAC compatibility (H.264 video + AAC audio,
+  merged to MP4)
+- MP3 audio extraction at up to 320kbps
+- Single and batch download modes (batch uses a 3-worker concurrency pool with
+  auto-retry)
+- Auto platform detection and playlist protection (`noplaylist`)
+- File size estimation before download
+- 3 retry attempts with progressive backoff
+- Rate limiting (60 requests/minute/IP) and request timeouts
+- Optional auto-send of downloaded videos to a Telegram chat
+- Responsive UI usable from mobile devices on the local network
 
-### ⚙ Backend
-- **Platform Detection** — Automatic URL routing to YouTube/Facebook-specific logic
-- **Smart Format Selection** — Uses yt-dlp format strings (`bestvideo+bestaudio/best`) for maximum quality
-- **FFmpeg Integration** — Bundled FFmpeg binary for video+audio merging and MP3 extraction
-- **AAC Audio Re-encoding** — Ensures all downloaded videos have universally compatible audio (not Opus)
-- **Playlist Protection** — Automatically extracts single video from playlist URLs (`noplaylist: true`)
-- **File Size Estimation** — Approximate file sizes shown before download
-- **Retry with Backoff** — 3 automatic retry attempts with progressive delay on download failures
-- **Concurrency Control** — Threading semaphore limits concurrent FFmpeg processes (prevents Windows file locks)
-- **Unicode-safe Filenames** — Strips emoji/non-ASCII from HTTP headers to prevent encoding crashes
-- **Rate Limiting** — 60 requests/minute per IP
-- **Timeout Protection** — 45s analyze timeout, 5min download timeout
-- **Auto Cleanup** — Temp files deleted after download completion
-
----
-
-## 🛠 Tech Stack
-
-| Layer        | Technology                                                   |
-|--------------|--------------------------------------------------------------|
-| **Frontend** | React 18, Vite, Tailwind CSS v4, Framer Motion, ogl (WebGL) |
-| **Backend**  | Python, FastAPI, yt-dlp, FFmpeg                              |
-| **Styling**  | Glassmorphism CSS, Bricolage Grotesque, custom animations    |
-
----
-
-## 🚀 Quick Start
+## Quick Start
 
 ### Prerequisites
-- **Node.js** 18+ and **npm**
-- **Python** 3.10+
-- **FFmpeg** (bundled in `backend/ffmpeg-master-latest-win64-gpl/bin/`)
+
+- Python 3.10+
+- Node.js 18+
+- FFmpeg available on `PATH` (or bundled in `backend/ffmpeg-master-latest-win64-gpl/bin/`)
 
 ### One-Click Start (Windows)
 
-```bash
-# Double-click or run:
+```bat
 start_dev.bat
 ```
 
-This launches both the backend (FastAPI on port 8000) and frontend (Vite on port 5173) simultaneously.
+This installs dependencies on first run and launches the backend (port 8000)
+and frontend (port 5173) in separate windows.
 
 ### Manual Setup
 
-#### Backend
+Backend:
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
-venv\Scripts\activate  # Windows
-# source venv/bin/activate  # macOS/Linux
-
-# Install dependencies
+venv\Scripts\activate        # Windows: use source venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
-
-# Run the server
 uvicorn main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-#### Frontend
+Frontend:
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
-
-# Run dev server
 npm run dev
 ```
 
-Open **http://localhost:5173** in your browser.
+Open http://localhost:5173. API docs are available at http://localhost:8000/docs.
 
-### 📱 Access from Phone
+### Docker
 
-The frontend is configured with `host: true` so it's accessible from any device on the same network:
-
-1. Start both backend and frontend
-2. Find your PC's IP (`ipconfig` on Windows)
-3. Open `http://<YOUR-IP>:5173` on your phone
-4. Set `VITE_API_URL=http://<YOUR-IP>:8000` in `frontend/.env` for the API
-
----
-
-## 📁 Project Structure
-
-```
-video-downloader/
-├── start_dev.bat              # One-click startup script (Windows)
-├── docker-compose.yml         # Docker configuration
-├── README.md
-│
-├── backend/
-│   ├── main.py                # FastAPI app, endpoints, rate limiting, filename sanitization
-│   ├── downloader.py          # yt-dlp wrapper: analyze, download, retry, FFmpeg control
-│   ├── requirements.txt       # Python dependencies
-│   ├── Dockerfile
-│   └── ffmpeg-.../bin/        # Bundled FFmpeg binary
-│
-└── frontend/
-    ├── index.html             # Entry HTML with Google Fonts
-    ├── vite.config.js         # Vite config (host: true for network access)
-    ├── postcss.config.js      # Tailwind CSS v4 PostCSS config
-    ├── package.json
-    │
-    └── src/
-        ├── main.jsx           # React entry point
-        ├── App.jsx            # Main application component
-        ├── api.js             # API client (analyze + download + blob error parsing)
-        ├── index.css          # Tailwind v4 theme + glassmorphism + custom scrollbars
-        │
-        └── components/
-            ├── FaultyTerminal.jsx  # WebGL matrix background (ogl)
-            ├── FaultyTerminal.css  # Terminal styles
-            ├── SpotlightCard.jsx   # Cursor-glow glassmorphism card
-            ├── BatchMode.jsx       # Multi-URL batch download with concurrency pool
-            ├── ProfileCard.jsx     # Interactive 3D tilt card component
-            └── ProfileCard.css     # ProfileCard styles + animations
+```bash
+docker compose up --build
 ```
 
----
+Backend runs on port 8000 and frontend on port 5173.
 
-## 🔌 API Endpoints
+### Telegram Auto-Send (Optional)
+
+Set these environment variables (or in `backend/.env`) to send downloads to
+Telegram:
+
+```
+TELEGRAM_BOT_TOKEN=<bot token from BotFather>
+TELEGRAM_CHAT_ID=<chat, group, or channel ID>
+```
+
+## CLI Usage
+
+```bash
+# Download a single URL
+python cli_download.py "https://youtube.com/watch?v=..."
+
+# Batch download from a file (one URL per line, # for comments)
+python batch_download.py urls.txt
+
+# Batch download from stdin
+echo -e "url1\nurl2" | python batch_download.py -
+```
+
+## API Endpoints
 
 ### `POST /api/analyze`
+
 Analyze a URL and return available formats.
 
-**Request:**
-```json
-{ "url": "https://youtube.com/watch?v=..." }
-```
-
-**Response:**
 ```json
 {
-  "platform": "youtube",
-  "contentType": "video",
-  "title": "Video Title",
-  "thumbnailUrl": "https://...",
-  "durationSeconds": 180,
-  "formats": [
-    {
-      "formatId": "bestvideo+bestaudio/best",
-      "ext": "mp4",
-      "resolution": "1080p",
-      "fps": 60,
-      "filesize": 52428800,
-      "hasVideo": true,
-      "hasAudio": true,
-      "label": "Best Quality Video + Audio"
-    }
-  ]
+  "url": "https://youtube.com/watch?v=..."
 }
 ```
 
+Response includes platform, title, thumbnail, duration, and a list of formats
+with `formatId`, extension, resolution, fps, and estimated file size.
+
 ### `POST /api/download`
+
 Download media in the selected format.
 
-**Request:**
 ```json
 {
   "url": "https://youtube.com/watch?v=...",
-  "formatId": "bestvideo+bestaudio/best",
-  "title": "Video Title"
+  "formatId": "bestvideo[vcodec^=avc1]+bestaudio[acodec^=mp4a]/best",
+  "title": "Optional friendly filename"
 }
 ```
 
-**Response:** Binary file download (MP4/MP3) with `Content-Disposition` header.
+Returns the binary file (MP4/MP3) with a `Content-Disposition` header.
 
----
+### Security
 
-## 🎨 Design System
+- Only `http`/`https` URLs are accepted, and hosts resolving to private,
+  loopback, or link-local addresses are rejected to prevent SSRF abuse.
+- No secrets are stored in the repository; the Telegram bot token must be
+  provided via environment variables.
+- TLS certificate verification is enabled. To restore the legacy bypass
+  (needed on networks with custom MITM proxies), set
+  `YTDLP_NO_CHECK_CERTIFICATE=1`.
 
-### Color Palette (Green Terminal Theme)
-| Token       | Hex       | Usage                                      |
-|-------------|-----------|---------------------------------------------|
-| `brand-50`  | `#f0fdf4` | Lightest accent                             |
-| `brand-100` | `#dcfce7` | Light accent                                |
-| `brand-300` | `#86efac` | Selection highlight                         |
-| `brand-400` | `#A7EF9E` | Primary accent (matches terminal tint)      |
-| `brand-500` | `#4ade80` | Buttons, active states                      |
-| `brand-600` | `#22c55e` | Hover states                                |
-| `dark-900`  | `#0f172a` | Deep background                             |
-| `dark-800`  | `#1e293b` | Card backgrounds                            |
+## Project Structure
 
-### Glassmorphism Classes
-| Class              | Properties                                   |
-|--------------------|----------------------------------------------|
-| `.glass-card`      | `blur(24px)`, `border-radius: 28px`          |
-| `.glass-input`     | `blur(12px)`, `border-radius: 18px`          |
-| `.glass-btn`       | `blur(8px)`, `border-radius: 18px`           |
-| `.glass-format-item` | `border-radius: 16px`, green glow on select |
-| `.custom-scrollbar`| 4px green-tinted scrollbar                   |
+```
+Universal-Downloader/
+├── backend/
+│   ├── main.py              # FastAPI app, endpoints, rate limiting, SSRF protection
+│   ├── downloader.py        # yt-dlp wrapper: analyze, download, retry, FFmpeg control
+│   ├── telegram_sender.py   # Optional Telegram video auto-send
+│   ├── requirements.txt
+│   ├── Dockerfile
+│   └── render.yaml          # Render deployment config
+├── frontend/
+│   ├── src/
+│   │   ├── App.jsx          # Main application component
+│   │   ├── api.js           # API client (analyze + download + blob error parsing)
+│   │   └── components/      # FaultyTerminal, BatchMode, ProfileCard, SpotlightCard
+│   ├── package.json
+│   ├── vite.config.js
+│   └── Dockerfile
+├── cli_download.py          # CLI single-URL downloader
+├── batch_download.py        # CLI batch downloader
+├── start_dev.bat            # Windows one-click startup
+├── docker-compose.yml
+└── urls.txt                 # Sample URL list for batch mode
+```
 
----
+## License
 
-## 📋 Dependencies
+[MIT](LICENSE) - Copyright (c) 2026 Vishnu Skandha
 
-### Backend (`requirements.txt`)
-- `fastapi` — Web framework
-- `uvicorn` — ASGI server
-- `yt-dlp` — Video extraction engine
-- `python-multipart` — Form data handling
-
-### Frontend (`package.json`)
-- `react` / `react-dom` — UI framework
-- `framer-motion` — Animations
-- `lucide-react` — Icons
-- `axios` — HTTP client
-- `ogl` — WebGL (FaultyTerminal background)
-- `clsx` / `tailwind-merge` — Class utilities
-- `@tailwindcss/postcss` — Tailwind CSS v4
-
----
-
-## 📄 License
-
-This project is for personal/educational use. Respect the Terms of Service of all platforms when downloading content.
-
----
-
-<p align="center">
-  <b>Built with 💚 by <a href="https://vishnuskandhagithubio.vercel.app/">Vishnu Skandha</a></b>
-</p>
+Download content only where you have the right to do so. Respect the Terms of
+Service of every platform.

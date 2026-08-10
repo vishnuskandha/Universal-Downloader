@@ -3,6 +3,14 @@ node_modules/
 venv/
 __pycache__/
 *.pyc
+*.pyo
+
+# Test and tooling caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 
 # Temp downloads
 backend/temp_downloads/

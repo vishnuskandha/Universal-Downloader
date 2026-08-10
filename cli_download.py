@@ -7,6 +7,7 @@ Example: python cli_download.py https://youtube.com/shorts/QKJK1VWTzmw?si=O8i38P
 
 import sys
 import os
+import html
 import asyncio
 import argparse
 
@@ -74,7 +75,7 @@ async def main():
         # Send to Telegram
         safe_print("[cli] Sending to Telegram...")
         title = info.get('title', 'Video')
-        caption = f"<b>Downloaded:</b> {title}\n<a href='{args.url}'>Source</a>"
+        caption = f"<b>Downloaded:</b> {html.escape(title)}\n<a href='{html.escape(args.url, quote=True)}'>Source</a>"
         sent = await send_video(filepath, caption)
         if sent:
             safe_print("[cli] Sent to Telegram successfully")
