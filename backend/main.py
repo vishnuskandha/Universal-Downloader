@@ -7,8 +7,11 @@ import time
 import asyncio
 import shutil
 import re
+import socket
+import ipaddress
 import traceback
 import threading
+import urllib.parse
 from starlette.background import BackgroundTask
 
 from downloader import analyze_url, download_video
@@ -49,6 +52,69 @@ def check_rate_limit(request: Request):
         if len(rate_limits[ip]) >= 60:
             raise HTTPException(status_code=429, detail="Rate limit exceeded. Try again later.")
         rate_limits[ip].append(now)
+        # Prevent unbounded growth of the rate-limit map.
+        if len(rate_limits) > 5000:
+            for stale_ip in [k for k, v in rate_limits.items() if not v]:
+                del rate_limits[stale_ip]
+
+# Hosts that must never be fetched (cloud metadata, cluster-internal, etc.)
+BLOCKED_HOSTS = {
+    "localhost",
+    "localhost.localdomain",
+    "metadata",
+    "metadata.google.internal",
+    "metadata.google.internal.",
+    "kubernetes.default.svc",
+    "kubernetes.default",
+}
+
+def validate_public_url(url: str) -> str:
+    """Reject non-http(s) schemes and hosts that are not publicly routable.
+
+    Prevents the download API from being abused as an SSRF proxy against
+    internal services and cloud metadata endpoints.
+    """
+    url = (url or "").strip()
+    parsed = urllib.parse.urlparse(url)
+    if parsed.scheme.lower() not in ("http", "https"):
+        raise HTTPException(status_code=400, detail="Only http/https URLs are supported.")
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Invalid URL: missing host.")
+
+    hostname_lower = hostname.lower().rstrip(".")
+    if hostname_lower in BLOCKED_HOSTS:
+        raise HTTPException(status_code=400, detail="This URL host is not allowed.")
+
+    try:
+        address = ipaddress.ip_address(hostname)
+        _assert_public_ip(address)
+    except ValueError:
+        # Hostname: resolve and reject if any address is non-public.
+        try:
+            records = socket.getaddrinfo(hostname, None)
+        except OSError:
+            raise HTTPException(status_code=400, detail="URL host could not be resolved.")
+        if not records:
+            raise HTTPException(status_code=400, detail="URL host could not be resolved.")
+        for record in records:
+            try:
+                address = ipaddress.ip_address(record[4][0])
+            except ValueError:
+                continue
+            _assert_public_ip(address)
+    return url
+
+def _assert_public_ip(address):
+    if (
+        address.is_private
+        or address.is_loopback
+        or address.is_link_local
+        or address.is_reserved
+        or address.is_multicast
+        or address.is_unspecified
+    ):
+        raise HTTPException(status_code=400, detail="URL host is not publicly reachable.")
 
 def safe_filename(title: str, ext: str) -> str:
     if not title:
@@ -82,8 +148,7 @@ MIME_MAP = {
 @app.post("/api/analyze")
 async def api_analyze(req: AnalyzeRequest, request: Request):
     check_rate_limit(request)
-    if not req.url:
-        raise HTTPException(status_code=400, detail="URL is required")
+    validate_public_url(req.url)
     try:
         data = await asyncio.wait_for(
             asyncio.to_thread(analyze_url, req.url),
@@ -104,8 +169,9 @@ async def api_analyze(req: AnalyzeRequest, request: Request):
 @app.post("/api/download")
 async def api_download(req: DownloadRequest, request: Request):
     check_rate_limit(request)
-    if not req.url or not req.formatId:
+    if not req.formatId:
         raise HTTPException(status_code=400, detail="URL and formatId are required")
+    validate_public_url(req.url)
 
     try:
         os.makedirs(TEMP_DIR, exist_ok=True)

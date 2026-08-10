@@ -7,6 +7,7 @@ or pipe: echo -e "url1\nurl2" | python batch_download.py -
 
 import sys
 import os
+import html
 import asyncio
 import argparse
 
@@ -49,7 +50,7 @@ async def process_url(url: str, idx: int):
         filepath = await download_video(url, selected['formatId'], 'downloads')
         safe_print(f"[{idx}] Downloaded: {filepath}")
 
-        caption = f"<b>{idx}. {title}</b>\n<a href='{url}'>Source</a>"
+        caption = f"<b>{idx}. {html.escape(title)}</b>\n<a href='{html.escape(url, quote=True)}'>Source</a>"
         sent = await send_video(filepath, caption)
         if sent:
             safe_print(f"[{idx}] Sent to Telegram")

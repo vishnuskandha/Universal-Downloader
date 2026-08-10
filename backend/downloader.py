@@ -29,13 +29,18 @@ HAS_FFMPEG = FFMPEG_LOCATION is not None
 # threading.Semaphore because _run() executes inside asyncio.to_thread().
 _DL_SEM = threading.Semaphore(2)
 
+# TLS certificate verification is kept enabled by default; the legacy bypass
+# (some corporate networks use MITM proxies with custom CAs) can be re-enabled
+# by setting YTDLP_NO_CHECK_CERTIFICATE=1.
+_NO_CHECK_CERT = os.getenv("YTDLP_NO_CHECK_CERTIFICATE", "").strip().lower() in ("1", "true", "yes")
+
 
 def _base_opts() -> dict:
     """Return a fresh copy of base yt-dlp options (never mutate the global)."""
     opts = {
         'quiet': True,
         'no_warnings': True,
-        'nocheckcertificate': True,
+        'nocheckcertificate': _NO_CHECK_CERT,
         'ignoreerrors': False,
         'extract_flat': False,
         'noplaylist': True,
