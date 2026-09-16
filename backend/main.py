@@ -18,13 +18,18 @@ from downloader import analyze_url, download_video
 
 app = FastAPI(title="Video Downloader API")
 
+FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
+ALLOWED_ORIGINS = [origin.strip().rstrip("/") for origin in FRONTEND_URL.split(",") if origin.strip()]
+if not ALLOWED_ORIGINS:
+    ALLOWED_ORIGINS = ["http://localhost:5173"]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-    expose_headers=["Content-Disposition"],  # so browser can read filename
+    allow_methods=["POST"],
+    allow_headers=["Content-Type"],
+    expose_headers=["Content-Disposition"],
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
