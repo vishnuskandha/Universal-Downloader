@@ -31,7 +31,7 @@ jobs:
 
       - name: Run backend regression tests
         run: |
-          python -m pytest backend/test_security.py
+          python -m unittest backend/test_security.py
 
       - name: Verify backend imports
         run: |
