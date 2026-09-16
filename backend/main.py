@@ -18,10 +18,12 @@ from downloader import analyze_url, download_video
 
 app = FastAPI(title="Video Downloader API")
 
-FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-ALLOWED_ORIGINS = [origin.strip().rstrip("/") for origin in FRONTEND_URL.split(",") if origin.strip()]
-if not ALLOWED_ORIGINS:
-    ALLOWED_ORIGINS = ["http://localhost:5173"]
+def get_allowed_origins(frontend_url: str | None = None) -> list[str]:
+    configured = frontend_url if frontend_url is not None else os.getenv("FRONTEND_URL", "http://localhost:5173")
+    origins = [origin.strip().rstrip("/") for origin in configured.split(",") if origin.strip()]
+    return origins or ["http://localhost:5173"]
+
+ALLOWED_ORIGINS = get_allowed_origins()
 
 app.add_middleware(
     CORSMiddleware,
